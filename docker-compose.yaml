@@ -1,0 +1,70 @@
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: taskplanner_app
+        restart: unless-stopped
+        ports:
+            - "${APP_PORT:-8000}:80"
+        env_file:
+            - .env
+        environment:
+            APP_URL: ${APP_URL:-http://localhost:8000}
+            DB_CONNECTION: mysql
+            DB_HOST: db
+            DB_PORT: 3306
+            DB_DATABASE: ${DB_DATABASE}
+            DB_USERNAME: ${DB_USERNAME}
+            DB_PASSWORD: ${DB_PASSWORD}
+            RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+        volumes:
+            - .:/var/www/html
+            - app_vendor:/var/www/html/vendor
+            - app_build:/var/www/html/public/build
+        depends_on:
+            db:
+                condition: service_healthy
+        networks:
+            - taskplanner
+
+    db:
+        image: mysql:8.4
+        container_name: mysql_task
+        restart: always
+        environment:
+            MYSQL_DATABASE: ${DB_DATABASE}
+            MYSQL_USER: ${DB_USERNAME}
+            MYSQL_PASSWORD: ${DB_PASSWORD}
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+        ports:
+            - "${DB_PORT:-3306}:3306"
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u${DB_USERNAME}", "-p${DB_PASSWORD}"]
+            interval: 10s
+            timeout: 30s
+            retries: 5
+        volumes:
+            - ./data/db:/var/lib/mysql
+        attach: false
+        networks:
+            - taskplanner
+
+    adminer:
+        image: adminer
+        restart: always
+        ports:
+            - "${ADMINER_PORT:-8080}:8080"
+        depends_on:
+            db:
+                condition: service_healthy
+        networks:
+            - taskplanner
+
+networks:
+    taskplanner:
+        driver: bridge
+
+volumes:
+    app_vendor:
+    app_build:
